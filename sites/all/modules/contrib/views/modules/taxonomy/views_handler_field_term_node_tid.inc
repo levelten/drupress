@@ -20,7 +20,9 @@ class views_handler_field_term_node_tid extends views_handler_field_prerender_li
 
     $options['link_to_taxonomy'] = array('default' => TRUE);
     $options['limit'] = array('default' => FALSE);
+    $options['limit_module'] = array('default' => 'vid');
     $options['vids'] = array('default' => array());
+    $options['modules'] = array('default' => array());
 
     return $options;
   }
@@ -38,14 +40,16 @@ class views_handler_field_term_node_tid extends views_handler_field_prerender_li
 
     $form['limit'] = array(
       '#type' => 'checkbox',
-      '#title' => t('Limit terms by vocabulary'),
+      '#title' => t('Limit terms by vocabulary vid'),
       '#default_value'=> $this->options['limit'],
     );
 
-    $options = array();
+    $options_vid = array();
+    $options_module = array();
     $vocabularies = taxonomy_get_vocabularies();
     foreach ($vocabularies as $voc) {
-      $options[$voc->vid] = check_plain($voc->name);
+      $options_vid[$voc->vid] = check_plain($voc->name);
+      $options_module[$voc->module] = check_plain($voc->name);
     }
 
     $form['vids'] = array(
@@ -53,11 +57,29 @@ class views_handler_field_term_node_tid extends views_handler_field_prerender_li
       '#suffix' => '</div></div>',
       '#type' => 'checkboxes',
       '#title' => t('Vocabularies'),
-      '#options' => $options,
+      '#options' => $options_vid,
       '#default_value' => $this->options['vids'],
       '#process' => array('expand_checkboxes', 'views_process_dependency'),
       '#dependency' => array('edit-options-limit' => array(TRUE)),
     );
+
+    $form['limit_module'] = array(
+      '#type' => 'checkbox',
+      '#title' => t('Limit terms by vocabulary module'),
+      '#default_value'=> $this->options['limit_module'],
+    );
+
+    $form['modules'] = array(
+      '#prefix' => '<div><div id="edit-options-modules">',
+      '#suffix' => '</div></div>',
+      '#type' => 'checkboxes',
+      '#title' => t('Vocabularies'),
+      '#options' => $options_module,
+      '#default_value' => $this->options['modules'],
+      '#process' => array('expand_checkboxes', 'views_process_dependency'),
+      '#dependency' => array('edit-options-limit-module' => array(TRUE)),
+    );
+
   }
 
   /**
@@ -78,6 +100,9 @@ class views_handler_field_term_node_tid extends views_handler_field_prerender_li
 
     if ($vids) {
       $voc = '';
+      if (!empty($this->options['limit_module']) && !empty($this->options['modules'])) {
+        $voc = " AND v.module IN (\"" . implode('", "', array_keys(array_filter($this->options['modules']))) . "\")";
+      }
       if (!empty($this->options['limit']) && !empty($this->options['vids'])) {
         $voc = " AND td.vid IN (" . implode(', ', array_keys(array_filter($this->options['vids']))) . ")";
       }

@@ -1,0 +1,3 @@
+<?php
+
+include_once('drupress_admin.features.inc');
