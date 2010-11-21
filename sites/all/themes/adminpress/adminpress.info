@@ -1,0 +1,13 @@
+; $Id$
+name = "Adminpress"
+description = "A Wordpress admin theme clone."
+core = "6.x"
+engine = "phptemplate"
+
+stylesheets[screen][] = "css/reset.css"
+stylesheets[screen][] = "css/styles.css"
+stylesheets[screen][] = "css/color.css"
+
+regions[adminmenu] = Admin Menu
+regions[content_left] = Content Left
+regions[footer] = Footer

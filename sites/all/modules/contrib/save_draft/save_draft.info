@@ -1,0 +1,11 @@
+; $Id: save_draft.info,v 1.1 2010/04/07 20:18:42 danjukes Exp $
+name = Save Draft
+description = Adds a 'Save as Draft' button to content types
+core = 6.x
+files[] = save_draft.module
+; Information added by drupal.org packaging script on 2010-11-17
+version = "6.x-1.7"
+core = "6.x"
+project = "save_draft"
+datestamp = "1289992575"
+

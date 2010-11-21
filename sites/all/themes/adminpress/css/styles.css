@@ -1,0 +1,9 @@
+#left_sidebar {
+  clear:left;
+  float:left;
+  list-style:none outside none;
+  margin:15px 5px 15px -160px;
+  padding:0;
+  position:relative;
+  width:145px;
+}

@@ -1,0 +1,85 @@
+<?php
+// $Id: save_draft.module,v 1.6 2010/11/17 10:59:44 danjukes Exp $
+
+/**
+ * @file
+ * Main file for the Save Draft module, which adds a 'Save as Draft' button to content types.
+ */
+ 
+ /**
+  * Implements hook_perm().
+  */
+ 
+ function save_draft_perm() {
+   return array('save draft');
+ }
+
+/**
+ * Implements hook_form_alter().
+ */
+ 
+function save_draft_form_alter(&$form, &$form_state, $form_id) {
+  $form_id = substr($form_id, -9);
+  if ($form_id == 'node_form' && user_access('save draft')) {
+    $form['options']['status'] = false;
+    if (isset($form['nid']['#value'])) {
+      if ($form['#node']->status == 1) {
+        $form['buttons']['draft'] = array(
+          '#type' => 'submit',
+          '#class' => 'form-submit',
+          '#value' => t('Unpublish'),
+          '#weight' => '9',
+          '#validate' => array('save_draft_validate'),
+          '#submit' => array('save_draft_submit')
+        );
+        $form['buttons']['submit']['#value'] = t('Save');
+        $form['buttons']['submit']['#validate'][] = 'save_draft_publish_validate';
+      }
+      else {
+        $form['buttons']['draft'] = array(
+          '#type' => 'submit',
+          '#class' => 'form-submit',
+          '#value' => t('Save'),
+          '#weight' => '0',
+		  '#validate' => array('save_draft_validate'),
+		  '#submit' => array('save_draft_submit')
+        );
+        $form['buttons']['submit']['#value'] = t('Publish');
+        $form['buttons']['submit']['#validate'][] = 'save_draft_publish_validate';
+      }
+    }
+    else {
+      $form['buttons']['draft'] = array(
+        '#type' => 'submit',
+        '#class' => 'form-submit',
+        '#value' => t('Save as Draft'),
+        '#weight' => '9',
+        '#validate' => array('save_draft_validate'),
+        '#submit' => array('save_draft_submit')
+      );
+      $form['buttons']['submit']['#value'] = t('Publish');
+      $form['buttons']['submit']['#validate'][] = 'save_draft_publish_validate';
+    }
+  }
+}
+
+/**
+ * Handles save draft form validation
+ */
+function save_draft_validate($form, &$form_state) {
+  $form_state['values']['status'] = 0;
+}
+
+/**
+ * Handles save draft form submission
+ */
+function save_draft_submit($form, &$form_state) {
+  node_form_submit($form, $form_state);
+}
+
+/**
+ * Handles publish form validation
+ */
+function save_draft_publish_validate($form, &$form_state) {
+  $form_state['values']['status'] = 1;
+}

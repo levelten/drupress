@@ -1,0 +1,236 @@
+diff --git modules/taxonomy.views.inc modules/taxonomy.views.inc
+index fb65fbb..e2747d5 100644
+--- modules/taxonomy.views.inc
++++ modules/taxonomy.views.inc
+@@ -70,6 +70,20 @@ function taxonomy_views_data() {
+       'handler' => 'views_handler_sort',
+     ),
+   );
++  $data['vocabulary']['module'] = array(
++    'title' => t('Vocabulary module'),
++    'help' => t('The owner module of the vocabulary'),
++    'filter' => array(
++      'handler' => 'views_handler_filter_vocabulary_module',
++    ),
++    'argument' => array(
++      'handler' => 'views_handler_argument_string',
++      'name field' => 'name',
++    ),
++    'sort' => array(
++      'handler' => 'views_handler_sort',
++    ),
++  );
+ 
+   // ----------------------------------------------------------------------
+   // term_data table
+@@ -451,6 +465,9 @@ function taxonomy_views_handlers() {
+       'views_handler_filter_vocabulary_vid' => array(
+         'parent' => 'views_handler_filter_in_operator',
+       ),
++      'views_handler_filter_vocabulary_module' => array(
++        'parent' => 'views_handler_filter_in_operator',
++      ),
+       'views_handler_filter_term_node_tid' => array(
+         'parent' => 'views_handler_filter_many_to_one',
+       ),
+diff --git modules/taxonomy/views_handler_field_term_node_tid.inc modules/taxonomy/views_handler_field_term_node_tid.inc
+index 5591bd7..b54d4b3 100644
+--- modules/taxonomy/views_handler_field_term_node_tid.inc
++++ modules/taxonomy/views_handler_field_term_node_tid.inc
+@@ -20,7 +20,9 @@ class views_handler_field_term_node_tid extends views_handler_field_prerender_li
+ 
+     $options['link_to_taxonomy'] = array('default' => TRUE);
+     $options['limit'] = array('default' => FALSE);
++    $options['limit_module'] = array('default' => 'vid');
+     $options['vids'] = array('default' => array());
++    $options['modules'] = array('default' => array());
+ 
+     return $options;
+   }
+@@ -38,14 +40,16 @@ class views_handler_field_term_node_tid extends views_handler_field_prerender_li
+ 
+     $form['limit'] = array(
+       '#type' => 'checkbox',
+-      '#title' => t('Limit terms by vocabulary'),
++      '#title' => t('Limit terms by vocabulary vid'),
+       '#default_value'=> $this->options['limit'],
+     );
+ 
+-    $options = array();
++    $options_vid = array();
++    $options_module = array();
+     $vocabularies = taxonomy_get_vocabularies();
+     foreach ($vocabularies as $voc) {
+-      $options[$voc->vid] = check_plain($voc->name);
++      $options_vid[$voc->vid] = check_plain($voc->name);
++      $options_module[$voc->module] = check_plain($voc->name);
+     }
+ 
+     $form['vids'] = array(
+@@ -53,11 +57,29 @@ class views_handler_field_term_node_tid extends views_handler_field_prerender_li
+       '#suffix' => '</div></div>',
+       '#type' => 'checkboxes',
+       '#title' => t('Vocabularies'),
+-      '#options' => $options,
++      '#options' => $options_vid,
+       '#default_value' => $this->options['vids'],
+       '#process' => array('expand_checkboxes', 'views_process_dependency'),
+       '#dependency' => array('edit-options-limit' => array(TRUE)),
+     );
++
++    $form['limit_module'] = array(
++      '#type' => 'checkbox',
++      '#title' => t('Limit terms by vocabulary module'),
++      '#default_value'=> $this->options['limit_module'],
++    );
++
++    $form['modules'] = array(
++      '#prefix' => '<div><div id="edit-options-modules">',
++      '#suffix' => '</div></div>',
++      '#type' => 'checkboxes',
++      '#title' => t('Vocabularies'),
++      '#options' => $options_module,
++      '#default_value' => $this->options['modules'],
++      '#process' => array('expand_checkboxes', 'views_process_dependency'),
++      '#dependency' => array('edit-options-limit-module' => array(TRUE)),
++    );
++
+   }
+ 
+   /**
+@@ -78,6 +100,9 @@ class views_handler_field_term_node_tid extends views_handler_field_prerender_li
+ 
+     if ($vids) {
+       $voc = '';
++      if (!empty($this->options['limit_module']) && !empty($this->options['modules'])) {
++        $voc = " AND v.module IN (\"" . implode('", "', array_keys(array_filter($this->options['modules']))) . "\")";
++      }
+       if (!empty($this->options['limit']) && !empty($this->options['vids'])) {
+         $voc = " AND td.vid IN (" . implode(', ', array_keys(array_filter($this->options['vids']))) . ")";
+       }
+diff --git modules/taxonomy/views_handler_filter_term_node_tid.inc modules/taxonomy/views_handler_filter_term_node_tid.inc
+index b8b6764..85fab93 100644
+--- modules/taxonomy/views_handler_filter_term_node_tid.inc
++++ modules/taxonomy/views_handler_filter_term_node_tid.inc
+@@ -16,7 +16,9 @@ class views_handler_filter_term_node_tid extends views_handler_filter_many_to_on
+ 
+     $options['type'] = array('default' => 'textfield');
+     $options['limit'] = array('default' => TRUE);
++    $options['limit_by'] = array('default' => 'vid');
+     $options['vid'] = array('default' => 0);
++    $options['module'] = array('default' => 'taxonomy');
+     $options['hierarchy'] = array('default' => 0);
+     $options['error_message'] = array('default' => TRUE);
+ 
+@@ -25,8 +27,16 @@ class views_handler_filter_term_node_tid extends views_handler_filter_many_to_on
+ 
+   function extra_options_form(&$form, &$form_state) {
+     $vocabularies = taxonomy_get_vocabularies();
++    $modules = array();
+     foreach ($vocabularies as $voc) {
+-      $options[$voc->vid] = check_plain($voc->name);
++      $options_vids[$voc->vid] = check_plain($voc->name);
++      $module = filter_xss_admin($voc->module);
++      if (isset($options_modules[$module])) {
++        unset($options_modules[$module]);
++      }
++      else {
++        $options_modules[$module] = check_plain($voc->module);
++      }
+     }
+ 
+     if ($this->options['limit']) {
+@@ -35,19 +45,47 @@ class views_handler_filter_term_node_tid extends views_handler_filter_many_to_on
+         $first_vocabulary = reset($vocabularies);
+         $this->options['vid'] = $first_vocabulary->vid;
+       }
++      if (!isset($options_modules[$this->options['module']])) {
++        $this->options['module'] = key($options_modules);
++      }
++
++      $form['markup_limit_start'] = array(
++        '#value' => '<div class="views-left-40">',
++      );
+ 
++      $form['limit_by'] = array(
++        '#type' => 'radios',
++        '#title' => t('Limit by'),
++        '#options' => array('vid' => t('Vocabulary'), 'module' => t('Vocabulary module')),
++        '#default_value' => $this->options['limit_by'],
++      );
+       $form['vid'] = array(
+-        '#prefix' => '<div class="views-left-40">',
++        '#prefix' => '<div id="edit-options-vid-wrapper">',
+         '#suffix' => '</div>',
+         '#type' => 'radios',
+-        '#title' => t('Vocabulary'),
+-        '#options' => $options,
+-        '#description' => t('Select which vocabulary to show terms for in the regular options.'),
++        '#options' => $options_vids,
++        '#description' => t('Limit available terms in regular options by vocabulary.'),
+         '#default_value' => $this->options['vid'],
++        '#process' => array('expand_radios', 'views_process_dependency'),
++        '#dependency' => array('radio:options[limit_by]' => array('vid')),
++      );
++      $form['module'] = array(
++        '#prefix' => '<div id="edit-options-module-wrapper">',
++        '#suffix' => '</div>',
++        '#type' => 'radios',
++        '#options' => $options_modules,
++        '#description' => t('Limit available terms in regular options by the vocabulary\'s owner module. Only owners with a single vocabulary are available.'),
++        '#default_value' => $this->options['module'],
++        '#process' => array('expand_radios', 'views_process_dependency'),
++        '#dependency' => array('radio:options[limit_by]' => array('module')),
++      );
++
++      $form['markup_limit_end'] = array(
++        '#value' => '</div>',
+       );
+     }
+ 
+-    $form['markup_start'] = array(
++    $form['markup_type_start'] = array(
+       '#value' => '<div class="views-left-40">',
+     );
+ 
+@@ -66,13 +104,20 @@ class views_handler_filter_term_node_tid extends views_handler_filter_many_to_on
+       '#dependency' => array('radio:options[type]' => array('select')),
+     );
+ 
+-    $form['markup_end'] = array(
++    $form['markup_type_end'] = array(
+       '#value' => '</div>',
+     );
+   }
+ 
+   function value_form(&$form, &$form_state) {
+-    $vocabulary = taxonomy_vocabulary_load($this->options['vid']);
++    if ($this->options['limit_by'] == 'module') {
++      if ($vid = db_result(db_query_range("SELECT vid FROM {vocabulary} WHERE module = '%s'", $this->options['module'], 0, 1))) {
++        $vocabulary = taxonomy_vocabulary_load($vid);
++      }
++    }
++    else {
++      $vocabulary = taxonomy_vocabulary_load($this->options['vid']);
++    }
+     if (empty($vocabulary) && $this->options['limit']) {
+       $form['markup'] = array(
+         '#prefix' => '<div class="form-item">',
+@@ -265,9 +310,14 @@ class views_handler_filter_term_node_tid extends views_handler_filter_many_to_on
+     }
+ 
+     // add the taxonomy vid to the argument list.
+-    $args[] = $this->options['vid'];
+-
+-    $result = db_query("SELECT * FROM {term_data} WHERE name IN (" . implode(', ', $placeholders) . ") AND vid = %d", $args);
++    if ($this->options['limit_by'] == 'module') {
++      $args[] = $this->options['module'];
++      $result = db_query("SELECT td.* FROM {term_data} td INNER JOIN {vocabulary} v ON td.vid = v.vid WHERE t.name IN (" . implode(', ', $placeholders) . ") AND v.module = '%s'", $args);
++    }
++    else {
++      $args[] = $this->options['vid'];
++      $result = db_query("SELECT * FROM {term_data} WHERE name IN (" . implode(', ', $placeholders) . ") AND vid = %d", $args);
++    }
+     while ($term = db_fetch_object($result)) {
+       unset($missing[strtolower($term->name)]);
+       $tids[] = $term->tid;
